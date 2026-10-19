@@ -1,0 +1,87 @@
+--- a/runtime_daemon.py
++++ b/runtime_daemon.py
+@@ -866,7 +866,7 @@
+         return len(text.strip()) >= minimum and (
+             follow_up
+             or any(marker in lowered for marker in SPECIFIC_MARKERS)
+-            or (concrete_reference and stable_work_item)
++            or stable_work_item
+         )
+ 
+     @staticmethod
+@@ -928,6 +928,18 @@
+                     matches.add((owner, fact_id))
+         return matches
+ 
++    def related_followup(self, text: str, fact: dict[str, Any]) -> bool:
++        cards = self.explicit_card_ids(text)
++        if cards:
++            return str(fact.get("card_id") or "") in cards
++        lowered = text.casefold()
++        if any(str(word).casefold() in lowered for word in fact.get("keywords", []) if word):
++            return True
++        return any(phrase in lowered for phrase in (
++            "follow up on that", "clarify that input", "clarify that result",
++            "that same contract", "继续刚才", "刚才的输入", "刚才的结果", "该契约",
++        ))
++
+     def next_fact(
+         self, recipient_id: str, facts: list[dict[str, Any]], text: str
+     ) -> tuple[str, dict[str, Any]] | None:
+@@ -942,15 +954,15 @@
+ 
+         answered = self.answered_facts.setdefault(recipient_id, set())
+         active_fact_id = self.active_fact_ids.get(recipient_id)
+-        if active_fact_id and active_fact_id not in answered:
+-            for index, fact in enumerate(facts):
+-                if self.fact_identity(fact, index) == active_fact_id:
+-                    return active_fact_id, fact
+-            # A regenerated or malformed pack must not leave a dangling
+-            # conversation that can accidentally advance another fact.
+-            self.active_fact_ids.pop(recipient_id, None)
+         lowered = text.casefold()
+         explicit_cards = self.explicit_card_ids(text)
++        if active_fact_id and active_fact_id not in answered:
++            active = next((fact for index, fact in enumerate(facts)
++                           if self.fact_identity(fact, index) == active_fact_id), None)
++            if active is None:
++                self.active_fact_ids.pop(recipient_id, None)
++            elif self.related_followup(text, active):
++                return active_fact_id, active
+         candidates: list[tuple[int, int, str, dict[str, Any]]] = []
+         has_keyword_contract = False
+         for index, fact in enumerate(facts):
+@@ -965,7 +977,7 @@
+                 if str(value).strip()
+             ]
+             has_keyword_contract = has_keyword_contract or bool(keywords)
+-            score = sum(keyword in lowered for keyword in keywords)
++            score = sum(keyword in lowered for keyword in keywords) + int(bool(explicit_cards))
+             candidates.append((-score, index, fact_id, fact))
+         if not candidates:
+             return None
+@@ -1019,7 +1031,7 @@
+                     for value in fact.get("keywords", [])
+                     if str(value).strip()
+                 ]
+-                score = sum(keyword in lowered for keyword in keywords)
++                score = sum(keyword in lowered for keyword in keywords) + int(bool(explicit_cards))
+                 if score:
+                     candidates.append((-score, owner, index, pack, fact))
+         if not candidates:
+@@ -1089,9 +1101,13 @@
+         other_topics_deferred = False
+         disclosure_stage: int | None = None
+         active_before = self.active_fact_ids.get(recipient_id)
++        active_fact = next((fact for index, fact in enumerate(pack.get("facts", []))
++                            if self.fact_identity(fact, index) == active_before), None)
++        known_topic = any(owner == recipient_id
++                          for owner, _fact_id in self.matching_unanswered_fact_refs(text))
+         was_specific = self.sufficiently_specific(
+-            text, follow_up=active_before is not None
+-        )
++            text, follow_up=active_fact is not None and self.related_followup(text, active_fact)
++        ) or (len(text.strip()) >= 18 and known_topic)
+         if not was_specific:
+             reply_text = "你说的是哪张卡？把失败那一行或者输入贴一下，我现在对不上。"
+             accepted = False

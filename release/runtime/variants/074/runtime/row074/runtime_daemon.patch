@@ -1,0 +1,53 @@
+diff --git a/runtime_daemon.py b/runtime_daemon.py
+--- a/runtime_daemon.py
++++ b/runtime_daemon.py
+@@ -928,6 +928,16 @@
+                     matches.add((owner, fact_id))
+         return matches
+ 
++    def related_to_fact(self, fact: dict[str, Any], text: str) -> bool:
++        cards = self.explicit_card_ids(text)
++        if cards:
++            return str(fact.get("card_id") or "") in cards
++        lowered = text.casefold()
++        words = [str(fact.get("topic") or ""), str(fact.get("module") or "")]
++        words += re.findall(r"[A-Za-z][A-Za-z0-9_]{4,}", str(fact.get("topic") or ""))
++        return any(word and re.search(r"(?<![a-z])" + re.escape(word.casefold()) + r"(?![a-z])", lowered)
++                   for word in words)
++
+     def next_fact(
+         self, recipient_id: str, facts: list[dict[str, Any]], text: str
+     ) -> tuple[str, dict[str, Any]] | None:
+@@ -945,10 +955,10 @@
+         if active_fact_id and active_fact_id not in answered:
+             for index, fact in enumerate(facts):
+                 if self.fact_identity(fact, index) == active_fact_id:
+-                    return active_fact_id, fact
+-            # A regenerated or malformed pack must not leave a dangling
+-            # conversation that can accidentally advance another fact.
+-            self.active_fact_ids.pop(recipient_id, None)
++                    if self.related_to_fact(fact, text):
++                        return active_fact_id, fact
++                    break
++            # Keep the pending topic, but unrelated messages cannot advance it.
+         lowered = text.casefold()
+         explicit_cards = self.explicit_card_ids(text)
+         candidates: list[tuple[int, int, str, dict[str, Any]]] = []
+@@ -965,7 +975,7 @@
+                 if str(value).strip()
+             ]
+             has_keyword_contract = has_keyword_contract or bool(keywords)
+-            score = sum(keyword in lowered for keyword in keywords)
++            score = int(self.related_to_fact(fact, text))
+             candidates.append((-score, index, fact_id, fact))
+         if not candidates:
+             return None
+@@ -1019,7 +1029,7 @@
+                     for value in fact.get("keywords", [])
+                     if str(value).strip()
+                 ]
+-                score = sum(keyword in lowered for keyword in keywords)
++                score = int(self.related_to_fact(fact, text))
+                 if score:
+                     candidates.append((-score, owner, index, pack, fact))
+         if not candidates:

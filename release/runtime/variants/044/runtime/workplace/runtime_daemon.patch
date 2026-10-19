@@ -1,0 +1,116 @@
+--- a/runtime_daemon.py
++++ b/runtime_daemon.py
+@@ -928,6 +928,16 @@
+                     matches.add((owner, fact_id))
+         return matches
+ 
++    @staticmethod
++    def keyword_matches(keyword: str, text: str) -> bool:
++        """Match a topic token without treating e.g. weekend as the end bound."""
++        keyword = str(keyword).strip().casefold()
++        if not keyword:
++            return False
++        left = r"(?<![a-z0-9_])" if re.match(r"[a-z0-9_]", keyword[0]) else ""
++        right = r"(?![a-z0-9_])" if re.match(r"[a-z0-9_]", keyword[-1]) else ""
++        return re.search(left + re.escape(keyword) + right, text.casefold()) is not None
++
+     def next_fact(
+         self, recipient_id: str, facts: list[dict[str, Any]], text: str
+     ) -> tuple[str, dict[str, Any]] | None:
+@@ -942,15 +952,29 @@
+ 
+         answered = self.answered_facts.setdefault(recipient_id, set())
+         active_fact_id = self.active_fact_ids.get(recipient_id)
+-        if active_fact_id and active_fact_id not in answered:
+-            for index, fact in enumerate(facts):
+-                if self.fact_identity(fact, index) == active_fact_id:
+-                    return active_fact_id, fact
+-            # A regenerated or malformed pack must not leave a dangling
+-            # conversation that can accidentally advance another fact.
+-            self.active_fact_ids.pop(recipient_id, None)
+         lowered = text.casefold()
+         explicit_cards = self.explicit_card_ids(text)
++        if active_fact_id and active_fact_id not in answered:
++            active = next((fact for index, fact in enumerate(facts)
++                           if self.fact_identity(fact, index) == active_fact_id), None)
++            if active is None:
++                self.active_fact_ids.pop(recipient_id, None)
++            elif explicit_cards:
++                if str(active.get("card_id") or "") in explicit_cards:
++                    return active_fact_id, active
++            elif (
++                any(self.keyword_matches(keyword, lowered)
++                    for keyword in active.get("keywords", []) if str(keyword).strip())
++                or re.search(
++                    r"\b(?:same|previous|this|that) (?:question|topic|call|input|case|boundary)\b|"
++                    r"(?:继续|补充|关于|回到)(?:刚才|前面|上面|这条|这个|同一)|"
++                    r"(?:刚才|前面|上面|同一)(?:问题|话题|调用|输入|边界)", lowered
++                )
++            ):
++                return active_fact_id, active
++        # An unrelated message must not consume a clarification turn. Explicit
++        # other cards may select another fact; per-fact progress is retained.
++        # Artifact-shaped text alone is not a relation to the active topic.
+         candidates: list[tuple[int, int, str, dict[str, Any]]] = []
+         has_keyword_contract = False
+         for index, fact in enumerate(facts):
+@@ -965,7 +989,7 @@
+                 if str(value).strip()
+             ]
+             has_keyword_contract = has_keyword_contract or bool(keywords)
+-            score = sum(keyword in lowered for keyword in keywords)
++            score = sum(self.keyword_matches(keyword, lowered) for keyword in keywords) + int(bool(explicit_cards))
+             candidates.append((-score, index, fact_id, fact))
+         if not candidates:
+             return None
+@@ -1019,7 +1043,7 @@
+                     for value in fact.get("keywords", [])
+                     if str(value).strip()
+                 ]
+-                score = sum(keyword in lowered for keyword in keywords)
++                score = sum(self.keyword_matches(keyword, lowered) for keyword in keywords) + int(bool(explicit_cards))
+                 if score:
+                     candidates.append((-score, owner, index, pack, fact))
+         if not candidates:
+@@ -1324,20 +1348,27 @@
+             seed = str(delivery.get("text") or "")
+             sender_pack = self.packs.get(sender) or {}
+             delivery_fact_id = str(delivery.get("iu") or "")
+-            rendered = self.render_colleague_reply(
+-                recipient_id=sender,
+-                conversation_id=conv_id,
+-                speech_act=f"progress_{delivery.get('kind') or 'delivery'}",
+-                allowed_content=seed,
+-                persona=(
+-                    sender_pack.get("persona")
+-                    if isinstance(sender_pack.get("persona"), dict)
+-                    else {}
+-                ),
+-                allowed_fact=(sender, delivery_fact_id)
+-                if delivery_fact_id
+-                else None,
+-            )
++            # Navigation is an authored availability statement, not a new
++            # colleague answer. Preserve its evidence status verbatim so a
++            # renderer cannot turn "unavailable" into a recovered sample.
++            if (delivery.get("kind") == "navigation"
++                    and delivery.get("evidence_status") == "unavailable"):
++                rendered = DeterministicReplyResponder().render({"allowed_content": seed})
++            else:
++                rendered = self.render_colleague_reply(
++                    recipient_id=sender,
++                    conversation_id=conv_id,
++                    speech_act=f"progress_{delivery.get('kind') or 'delivery'}",
++                    allowed_content=seed,
++                    persona=(
++                        sender_pack.get("persona")
++                        if isinstance(sender_pack.get("persona"), dict)
++                        else {}
++                    ),
++                    allowed_fact=(sender, delivery_fact_id)
++                    if delivery_fact_id
++                    else None,
++                )
+             message = self.append_message(
+                 conv_id,
+                 sender,

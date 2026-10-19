@@ -1,0 +1,43 @@
+--- a/usr/local/bin/runtime_daemon.py
++++ b/usr/local/bin/runtime_daemon.py
+@@ -866,6 +866,7 @@
+         return len(text.strip()) >= minimum and (
+             follow_up
+             or any(marker in lowered for marker in SPECIFIC_MARKERS)
++            or bool(self.explicit_card_ids(text))
+             or (concrete_reference and stable_work_item)
+         )
+ 
+@@ -945,10 +946,21 @@
+         if active_fact_id and active_fact_id not in answered:
+             for index, fact in enumerate(facts):
+                 if self.fact_identity(fact, index) == active_fact_id:
+-                    return active_fact_id, fact
++                    cards = self.explicit_card_ids(text)
++                    lowered = text.casefold()
++                    related = str(fact.get("card_id") or "") in cards or any(
++                        str(word).casefold() in lowered for word in fact.get("keywords", [])
++                        if str(word).strip()
++                    )
++                    contextual = not cards and any(phrase in lowered for phrase in (
++                        "that case", "same input", "previous example", "this calendar case",
++                        "刚才那条", "这个输入", "上述用例", "继续确认", "跟进这个",
++                    ))
++                    if (not cards or str(fact.get("card_id") or "") in cards) and (related or contextual):
++                        return active_fact_id, fact
++                    break
+             # A regenerated or malformed pack must not leave a dangling
+             # conversation that can accidentally advance another fact.
+-            self.active_fact_ids.pop(recipient_id, None)
+         lowered = text.casefold()
+         explicit_cards = self.explicit_card_ids(text)
+         candidates: list[tuple[int, int, str, dict[str, Any]]] = []
+@@ -966,6 +978,8 @@
+             ]
+             has_keyword_contract = has_keyword_contract or bool(keywords)
+             score = sum(keyword in lowered for keyword in keywords)
++            if str(fact.get("card_id") or "") in explicit_cards:
++                score += 100
+             candidates.append((-score, index, fact_id, fact))
+         if not candidates:
+             return None
