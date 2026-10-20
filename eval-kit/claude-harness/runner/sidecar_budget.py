@@ -13,22 +13,35 @@ from pathlib import Path
 import tempfile
 import time
 
-from sidecar_budget_sources import EXPECTED_ADAPTER_SHA256, EXPECTED_NOTIFICATION_SHA256
+import sidecar_budget_sources as pins
+from sidecar_manifest import ADAPTER, NOTIFICATION, manifest_sha256, native_budget, pins_apply
 
-ADAPTER = "/usr/local/bin/harbor_dynamic_colleague_adapter.py"
-NOTIFICATION = "/usr/local/bin/runtime_daemon.py"
 BUDGET_ENV = "COWORK_COLLEAGUE_MAX_OUTPUT_TOKENS"
 DEFAULT_BUDGET = 32768
-NATIVE_CONFIGURED_BUDGETS = {
-    87: {
-        'task_version': 'held-repair-087-native-budget-lineage-20260926-v2',
-        'files': {
-            '/usr/local/bin/harbor_dynamic_colleague_adapter.py': '3353a7fa13c5a9598651ced8dd5de5ae6b90296db27e4f05ccd2570654151f28',
-            '/usr/local/bin/runtime_daemon.py': '4e402d3120769d1edc08e822336e8f6f055e097389c33d6acd920b686ed6fd7a',
-            '/usr/local/bin/colleague_output_budget.py': '0565a90e8454b561b4d393adb687cc0fafc49865510b976bfeaf29b00ab30bf9',
-        },
-    },
-}
+
+
+def pins_current(release=None):
+    """Generated pins apply only to the exact MANIFEST they were generated for."""
+    return pins_apply(getattr(pins, "PINNED_MANIFEST_SHA256", None), release)
+
+
+def native_for(entry, release=None):
+    """Native environment-configured budget files for this row, if any."""
+    if pins_current(release):
+        native = getattr(pins, "NATIVE_CONFIGURED_BUDGETS", {}).get(entry["row"])
+        if native and native.get("task_version") == entry.get("task_version"):
+            return native
+    return native_budget(entry)
+
+
+def expected_for(entry, release=None):
+    """(adapter, notification) source hashes: current pins, else MANIFEST-derived."""
+    if pins_current(release):
+        adapter = pins.EXPECTED_ADAPTER_SHA256.get(entry["row"])
+        notification = pins.EXPECTED_NOTIFICATION_SHA256.get(entry["row"])
+        if adapter and notification:
+            return adapter, notification
+    return manifest_sha256(entry, ADAPTER), manifest_sha256(entry, NOTIFICATION)
 RUN_LABEL = "org.cowork.release.run"
 ROLE_LABEL = "org.cowork.release.role"
 
@@ -203,16 +216,16 @@ def verify_native_budget(docker, state, identifier, entry, save, budget, native)
 def patch_created_sidecar(docker, state, identifier, entry, save, budget=None, prepared_adapter=None):
     """Patch, read back, and audit a stopped, never-started owned container."""
     budget = configured_budget() if budget is None else validate_budget(budget)
-    native = NATIVE_CONFIGURED_BUDGETS.get(entry["row"])
-    if native and entry.get("task_version") == native["task_version"]:
+    native = native_for(entry)
+    if native:
         return verify_native_budget(docker, state, identifier, entry, save, budget, native)
-    expected = EXPECTED_ADAPTER_SHA256.get(entry["row"])
-    expected_notification = EXPECTED_NOTIFICATION_SHA256.get(entry["row"])
+    expected, expected_notification = expected_for(entry)
     if prepared_adapter is not None:
-        from public_sidecar_mount import PUBLIC_SHA256, verify_adapter_mount
+        from public_sidecar_mount import verify_adapter_mount
         require(entry['row'] == 2, 'Prepared adapter is restricted to row 002')
-        expected = PUBLIC_SHA256
-    require(bool(expected) and bool(expected_notification), "No frozen backend hashes for this task")
+        expected = prepared_adapter['original_sha256']
+    require(bool(expected) and bool(expected_notification),
+            "No release-bound backend hashes for this task; run tools/regen_sidecar_pins.py RELEASE --from-images")
     require_created(docker, state, identifier, entry["images"]["workplace"])
     audit = {"schema": "cowork-sidecar-output-budget-patch-v1", "at": time.time(),
              "run_id": state["run_id"], "row": entry["row"], "container_id": identifier,

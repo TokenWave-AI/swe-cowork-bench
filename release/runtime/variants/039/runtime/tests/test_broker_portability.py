@@ -35,7 +35,9 @@ class BrokerMountPortability(unittest.TestCase):
         docker = SimpleNamespace(call=lambda args: SimpleNamespace(stdout=str(engine.ROOT) + '\n'))
         with patch.object(engine, 'Docker', return_value=docker), \
                 patch.object(row039_broker, '_host_mount', return_value=('/broker-runs/file', 'xfs', '/dev/nvme0n1')), \
-                patch.object(broker_platform_masks, 'host_evidence', return_value=([], False)):
+                patch.object(broker_platform_masks, 'host_evidence', return_value=([], False)), \
+                patch.object(broker_platform_masks, 'absent_kernel_masks', return_value=[], create=True):
+            # This tree's masks also verify host kernel directories; that is covered on the real host.
             actual = row039_broker.approved_mounts({'mount_profile': profile}, sources, info)
         dynamic = [item for item in actual if item['target'] in row039_broker.DYNAMIC_MOUNTS]
         self.assertEqual(len(dynamic), 8)

@@ -1,7 +1,6 @@
 """Keep colleague output budgets uniform across generic and broker launches."""
 from functools import wraps
-from sidecar_budget import (BUDGET_ENV, NATIVE_CONFIGURED_BUDGETS,
-                            configured_budget, patch_created_sidecar)
+from sidecar_budget import BUDGET_ENV, configured_budget, native_for, patch_created_sidecar
 
 
 def install(engine, semantic_timeout_repair_rows=()):
@@ -22,8 +21,7 @@ def install(engine, semantic_timeout_repair_rows=()):
                 from public_sidecar_mount import prepare_adapter
                 kwargs['mounts'], prepared_adapter = prepare_adapter(
                     engine, state, entry, kwargs.get('mounts') or [], configured_budget())
-            native = NATIVE_CONFIGURED_BUDGETS.get(entry['row'])
-            if native and entry.get('task_version') == native['task_version']:
+            if native_for(entry):
                 environment = dict(kwargs.get('environment') or {})
                 environment[BUDGET_ENV] = str(configured_budget())
                 kwargs['environment'] = environment

@@ -155,7 +155,7 @@ class BuildInputTest(unittest.TestCase):
                  "gradle/wrapper/dists/gradle-6.5-bin/other/gradle-6.5/init.d/readme.txt",
                  "gradle/wrapper/dists/gradle-6.5-bin/6nifqtx7604sqp1q6g8wikw7p/gradle-6.5/init.d/sub/readme.txt",
                  "gradle/wrapper/dists/gradle-6.5-bin/6nifqtx7604sqp1q6g8wikw7p/gradle-7.0/init.d/readme.txt",
-                 "oracle/init.d/readme.txt"]
+                 "vendor/init.d/readme.txt"]
         for relative in paths:
             with self.subTest(path=relative):
                 target = self.payload / relative

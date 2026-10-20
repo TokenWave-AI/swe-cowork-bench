@@ -69,5 +69,5 @@ The original author scope ledger still classifies CA-223/224 as context-only;
 the explicit supervisor authorization and CA-SCOPE-015-v1 correction remain.
 Fresh source research and the five-case public/owner policy matrix are recorded
 separately. No absent historical run records, obsolete API signatures or caller
-lists are invented. The published scope policy and Oracle projections are
+lists are invented. The published scope policy and owner-map projection are
 unchanged. Real MCP transport and model-backed owner dialogue remain unclaimed.

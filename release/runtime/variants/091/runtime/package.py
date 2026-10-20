@@ -20,7 +20,7 @@ def package_files(root):
     root = Path(root).resolve(strict=True)
     selected = {}
     roots = ('cowork', 'README.md', 'MANIFEST.json', 'requirements.txt', '.env.example', '.gitignore',
-             'runtime', 'tasks', 'oracle', 'docs', 'provenance', 'validation')
+             'runtime', 'tasks', 'docs', 'provenance', 'validation')
     def add(path):
         if path.name in registry.IGNORED or path.name == '.git' or path.suffix in {'.pyc', '.pyo'}:
             return

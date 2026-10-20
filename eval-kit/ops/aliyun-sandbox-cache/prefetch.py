@@ -2,22 +2,26 @@
 """Stage task images from the shared pull-through cache ahead of dispatch, and
 evict images of finished tasks when disk is low. Never touches images of
 pending/running tasks. Images keep their harbor.tokenwave.us digest reference,
-so the runtime's ensure_image() finds them present and skips its own pull."""
-import glob,json,os,shutil,subprocess,time
-ROWMAP=json.load(open('/usr/local/etc/rowmap.json'))
+so the runtime's ensure_image() finds them present and skips its own pull.
+
+usage: prefetch.py [CAMPAIGN_ROOT]   (or PREFETCH_ROOT=...; PREFETCH_ROWMAP, PREFETCH_LOG,
+PREFETCH_DISK_PATH override the rowmap, log file and the disk whose free space is checked)"""
+import glob,json,os,shutil,subprocess,sys,time
+ROWMAP=json.load(open(os.environ.get('PREFETCH_ROWMAP','/usr/local/etc/rowmap.json')))
+ROOT=(sys.argv[1] if len(sys.argv)>1 else os.environ.get('PREFETCH_ROOT'))
+DISK=os.environ.get('PREFETCH_DISK_PATH','/')
 LOOKAHEAD=int(os.environ.get('PREFETCH_LOOKAHEAD','30'))
 LOW,HIGH=14,20
-LOG='/var/log/prefetch.log'
+LOG=os.environ.get('PREFETCH_LOG','/var/log/prefetch.log')
 TERMINAL_DONE={'finished','agent_error','cancelled'}
 def log(msg):
     with open(LOG,'a') as f: f.write(time.strftime('%FT%TZ ',time.gmtime())+msg+'\n')
 def sh(*a,timeout=None):
     return subprocess.run(a,capture_output=True,text=True,timeout=timeout)
 def present(ref): return sh('docker','image','inspect',ref).returncode==0
-def free_gib(): return shutil.disk_usage('/').free/2**30
+def free_gib(): return shutil.disk_usage(DISK).free/2**30
 def root():
-    r=sorted(glob.glob('/data2/cowork/*/'))
-    return r[0].rstrip('/') if r else None
+    return ROOT.rstrip('/') if ROOT and os.path.isfile(os.path.join(ROOT,'CONFIG.json')) else None
 def phases(R):
     out={}
     for f in glob.glob(R+'/jobs/*-cowork/STATUS.json'):

@@ -1,5 +1,0 @@
-flowchart TD
-    OwnerDestroy[destroy owner] --> RenderA[clear associated render A]
-    OwnerDestroy --> RenderB[clear associated render B]
-    ResultDestroy[result A destroy] --> RenderA
-    ResultDestroy -. does not destroy .-> OwnerAlive[owner and render B remain live]

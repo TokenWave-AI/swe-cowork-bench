@@ -18,7 +18,7 @@
     {
       "iu": "IU-09",
       "card_id": "UTA-209",
-      "topic": "Curve paste clamping and undo",
+      "topic": "Curve Paste Clamping and Undo",
       "module": "piano-editing",
       "keywords": [
         "PasteCurveCommand",
@@ -31,7 +31,7 @@
       "disclosure": {
         "strategy": "one_consumer_path",
         "clarification_prompts": [
-          "Curve paste clamping and undo: record just one usage path this time; what are the caller's version and configuration?",
+          "Curve Paste Clamping and Undo: Let's record just one adoption path this time; what version and configuration is the caller using?",
           "Can this result be reproduced in the same environment? Add the reproduction version to UTA-209.",
           "If the oldest version still in use can't be found, explicitly mark it as unknown; don't estimate the user count as zero."
         ],
@@ -50,7 +50,7 @@
     {
       "iu": "IU-11",
       "card_id": "UTA-211",
-      "topic": "Naming undo groups with deferred validation",
+      "topic": "Deferred Validation Undo Group Naming",
       "module": "track-routing-fx",
       "keywords": [
         "UCommandGroup",
@@ -80,7 +80,7 @@
     {
       "iu": "IU-13",
       "card_id": "UTA-213",
-      "topic": "Adding notes to offset parts and rolling back",
+      "topic": "Note Insertion and Rollback in Offset Parts",
       "module": "piano-editing",
       "keywords": [
         "AddNoteCommand",
@@ -112,7 +112,7 @@
     {
       "iu": "IU-14",
       "card_id": "UTA-214",
-      "topic": "Waveform part scaling and fade undo",
+      "topic": "Waveform Part Scaling and Fade Undo",
       "module": "piano-editing",
       "keywords": [
         "ResizeWavePartCommand",
@@ -125,7 +125,7 @@
       "disclosure": {
         "strategy": "one_consumer_path",
         "clarification_prompts": [
-          "Waveform part scaling and fade undo: record just one usage path this time; what are the caller's version and configuration?",
+          "Waveform Part Scaling and Fade Undo: Let's record just one adoption path this time; what version and configuration is the caller using?",
           "Can this result be reproduced in the same environment? Add the reproduction version to UTA-214. After that, continue only along this case's normal path or the next call after a failure.",
           "Also provide the result with an alternative configuration for this caller; don't substitute a different type of user."
         ],
@@ -144,7 +144,7 @@
     {
       "iu": "IU-22",
       "card_id": "UTA-222",
-      "topic": "Dispatching multi-track and time-range selections",
+      "topic": "Multitrack and Time Range Selection Dispatch",
       "module": "track-routing-fx",
       "keywords": [
         "SelectedTracks",
@@ -176,7 +176,7 @@
     {
       "iu": "IU-27",
       "card_id": "UTA-227",
-      "topic": "Adjacent note scaling state capture",
+      "topic": "Adjacent Note Resize State Capture",
       "module": "piano-editing",
       "keywords": [
         "NoteResizeEditState",
@@ -188,7 +188,7 @@
       "disclosure": {
         "strategy": "one_consumer_path",
         "clarification_prompts": [
-          "Let's switch to another live case; this time, look at piano-editing's “adjacent note scaling state capture.” Which real caller and which version are UTA-227? Put the usage together with the return, error, or subsequent state.",
+          "Let's switch to another real-world case; this time, look at piano-editing's “Adjacent Note Resize State Capture”. For UTA-227, which actual caller and which version? Put the usage details alongside the response, error, or subsequent state.",
           "Also say what the caller sees when rejected; no need to explain the internal reason."
         ],
         "answer_prefix": "The caller and version scope are clear; the compatibility statement is:",

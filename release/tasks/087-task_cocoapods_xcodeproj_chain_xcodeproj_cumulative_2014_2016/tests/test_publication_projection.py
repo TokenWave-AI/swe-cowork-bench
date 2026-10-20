@@ -14,9 +14,6 @@ from publication_projection import SOURCE_ALIASES, source_sha256, validate
 spec = importlib.util.spec_from_file_location('projection_runtime_builder', ROOT / 'tools/build_runtime_lineage.py')
 builder = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(builder)
-spec = importlib.util.spec_from_file_location('projection_contract_builder', ROOT / 'tools/build_contracts.py')
-contracts = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(contracts)
 
 
 class PublicationProjectionTests(unittest.TestCase):
@@ -46,13 +43,11 @@ class PublicationProjectionTests(unittest.TestCase):
                         'images': self.images}
         (self.root / 'runtime-lineage/publication.json').write_text(json.dumps(self.receipt))
 
-    def test_exact_publication_preserves_build_and_contract_bindings(self):
+    def test_exact_publication_preserves_build_bindings(self):
         before = builder.render(self.root)
-        oracle = contracts.render(self.root)
         self.publish()
         self.assertEqual(validate(self.root)['status'], 'published')
         self.assertEqual(before, builder.render(self.root))
-        self.assertEqual(oracle, contracts.render(self.root))
         builder.prepare(self.root, True)
 
     def test_unapproved_task_changes_fail(self):

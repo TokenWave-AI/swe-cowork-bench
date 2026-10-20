@@ -5,7 +5,7 @@
 # and re-pulled on demand by the runtime's ensure_image().
 LOW_GIB=${LOW_GIB:-18}
 HIGH_GIB=${HIGH_GIB:-28}
-LOG=/var/log/image-janitor.log
+LOG=${LOG:-/var/log/image-janitor.log}
 free_gib() { df -BG --output=avail / | tail -1 | tr -dc 0-9; }
 SEEN=/var/lib/image-janitor.seen; touch $SEEN
 while true; do

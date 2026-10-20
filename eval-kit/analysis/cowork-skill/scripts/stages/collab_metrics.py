@@ -1,4 +1,4 @@
-"""Per-run collaboration metrics joined to the Oracle owner-held requirement set.
+"""Per-run collaboration metrics joined to the owner-held requirement set (requirement links).
 
 Adapted for cowork-model-report-skill: paths parametrised; definitions unchanged.
 Writes OUT/data/COLLAB_RUNS.csv and COLLAB_REQS.csv."""
@@ -6,7 +6,7 @@ import csv, json, re, collections, statistics as st
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from common import config  # noqa: E402
+from common import config, owner_facts  # noqa: E402
 _CFG = config()
 REL = _CFG.bundle
 TRAJ = _CFG.campaign            # campaign root: inputs/<row>/behavior
@@ -25,14 +25,8 @@ def owner_reqs(row):
             for r in m['requirements'] if r['holder'] != 'public'}
 
 def owner_reqs_spec(row):
-    s = json.load(open(REL / f'oracle/{row}/FULL_SPEC.json'))
-    oa = s.get('owner_answers')
-    out = {}
-    if isinstance(oa, list):
-        for o in oa:
-            for f in o.get('facts', []):
-                out[f['iu']] = dict(card=f.get('card_id'), owner=o['owner'], topic=f.get('topic'))
-    return out
+    """FULL_SPEC owner_answers when the bundle ships oracle/, else the requirement links."""
+    return owner_facts(_CFG, row)
 
 asks = collections.defaultdict(list)
 for l in open(COMM / 'ASK_CHAINS.jsonl'):

@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 PACKAGE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PACKAGE / 'runner'))
+sys.path.insert(1, str(next((p for p in (PACKAGE / 'common', PACKAGE.parent / 'common') if p.is_dir()), PACKAGE / 'common')))
 import claude_driver as driver
 import mcp_startup_policy as policy
 from claude_goal import initialize
@@ -49,7 +50,7 @@ class MCPStartup(unittest.TestCase):
         self.deadline = time.time() + 1000
         initialize(self.state, 'fixture-session', self.workspace, self.deadline, 'objective', 'fingerprint')
         self.cfg = {'model': 'offline-model', 'effort': 'max', 'claude_binary': '/offline/claude',
-                    'tasks': [{'row': 1}], 'conditions': ['cowork', 'oracle'],
+                    'tasks': [{'row': 1}], 'conditions': ['cowork'],
                     'docker_host': 'unix:///offline.sock', 'native_solver_user': 'synthetic'}
         driver.STOP.clear()
 
@@ -66,7 +67,7 @@ class MCPStartup(unittest.TestCase):
                 'fixture-session', self.cfg, self.state, row=1, condition=condition)
 
     def test_pending_init_fails_attempt_but_records_same_session_for_resume(self):
-        for condition in ('cowork', 'oracle'):
+        for condition in ('cowork',):
             with self.subTest(condition=condition):
                 result = self.run_stream([pending(self.workspace)], condition=condition,
                                          target=self.root/condition)
@@ -86,7 +87,7 @@ class MCPStartup(unittest.TestCase):
             {'mcp_servers': [{'name': 'cowork', 'status': 'pending', 'error': 'failure'}]},
             {'mcp_servers': [{'name': 'cowork', 'status': 'pending'}, {'name': 'extra', 'status': 'pending'}]},
             {'mcp_servers': [{'name': 'other', 'status': 'pending'}]}]
-        for condition in ('cowork', 'oracle'):
+        for condition in ('cowork',):
             for index, change in enumerate(changes):
                 with self.subTest(condition=condition, change=change):
                     result = self.run_stream([dict(pending(self.workspace), **change)],
@@ -99,7 +100,7 @@ class MCPStartup(unittest.TestCase):
             'content': [{'type': 'tool_use', 'id': 'call-1', 'name': 'mcp__cowork__terminal', 'input': {}}]}}
         receipt = {'type': 'user', 'session_id': 'fixture-session', 'message': {'role': 'user',
                    'content': [{'type': 'tool_result', 'tool_use_id': 'unknown', 'content': 'text'}]}}
-        for condition in ('cowork', 'oracle'):
+        for condition in ('cowork',):
             for index, events in enumerate(([tool, pending(self.workspace)], [pending(self.workspace), tool],
                                             [receipt, pending(self.workspace)], [pending(self.workspace), receipt])):
                 with self.subTest(condition=condition, index=index):
@@ -121,7 +122,7 @@ class MCPStartup(unittest.TestCase):
             'duration_api_ms': 0, 'total_cost_usd': 0, 'modelUsage': {},
             'permission_denials': [], 'usage': {'input_tokens': 0, 'output_tokens': 0,
                 'cache_creation_input_tokens': 0, 'cache_read_input_tokens': 0}}
-        for condition in ('cowork', 'oracle'):
+        for condition in ('cowork',):
             result = self.run_stream([pending(self.workspace), rejection], condition=condition,
                 target=self.root/f'pending-proxy-{condition}')
             self.assertEqual(result['reason'], 'mcp_startup_pending')
@@ -180,7 +181,7 @@ class MCPStartup(unittest.TestCase):
             return self.run_stream([pending(workdir)], condition=condition,
                                     target=trajectory.parent, deadline=deadline)
 
-        for condition in ('cowork', 'oracle'):
+        for condition in ('cowork',):
             run_id = f'fixture-{condition}'
             runs = root/condition/'runs'
             run = runs/run_id
@@ -212,7 +213,7 @@ class MCPStartup(unittest.TestCase):
                 self.assertEqual(after[key], original[key])
 
     def test_complete_condition_specific_registry_is_still_required_for_success(self):
-        for condition in ('cowork', 'oracle'):
+        for condition in ('cowork',):
             event = pending(self.workspace)
             event['tools'] = sorted(driver.expected_tool_names(condition, 1))
             event['mcp_servers'] = [{'name': 'cowork', 'status': 'connected'}]

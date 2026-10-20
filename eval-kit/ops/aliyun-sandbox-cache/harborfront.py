@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Local TLS front for harbor.tokenwave.us (docker treats it as insecure registry, so a self-signed cert is fine).
 Routes /v2/release/cowork-bench/NNN-* to the shared pull-through cache that owns row NNN; everything else to real Harbor."""
-import http.client,json,re,socket,ssl,sys,threading
+import http.client,json,os,re,socket,ssl,sys,threading
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
-ROWMAP=json.load(open('/usr/local/etc/rowmap.json'))
+ROWMAP=json.load(open(os.environ.get('HARBORFRONT_ROWMAP','/usr/local/etc/rowmap.json')))
 REAL=sys.argv[1]           # real harbor IP
 ctx_up=ssl.create_default_context()
 RX=re.compile(r'^/v2/release/cowork-bench/(\d{3})-')

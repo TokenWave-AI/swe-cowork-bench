@@ -126,7 +126,7 @@ class ContractArtifactRegression(unittest.TestCase):
         for path in self.artifacts:
             self.assertIn(f"PASS {path.relative_to(self.root)}:", result.stdout)
             self.assertIn(hashlib.sha256(path.read_bytes()).hexdigest(), result.stdout)
-        self.assertIn("Contract check: 2/2 artifacts synchronized", result.stdout)
+        self.assertIn(f"Contract check: {len(self.artifacts)}/{len(self.artifacts)} artifacts synchronized", result.stdout)
 
     def test_version_titles_follow_metadata_and_reject_stale_outputs(self):
         for content in self.artifacts.values():
@@ -134,13 +134,13 @@ class ContractArtifactRegression(unittest.TestCase):
         self.metadata.write_text('[metadata]\ntask_version = "fixture-r2"\n')
         result = self.invoke("--check")
         self.assertEqual(result.returncode, 1, result.stderr)
-        self.assertIn("Contract check: 0/2 artifacts synchronized", result.stdout)
+        self.assertIn(f"Contract check: 0/{len(self.artifacts)} artifacts synchronized", result.stdout)
         self.regenerate()
         for content in self.artifacts.values():
             self.assertTrue(content.startswith("# fixture-r2: authoritative context\n"))
         self.assertEqual(self.invoke("--check").returncode, 0)
 
-    def test_each_contract_input_change_invalidates_both_artifacts_without_rewriting(self):
+    def test_each_contract_input_change_invalidates_every_artifact_without_rewriting(self):
         for source in (self.public, self.board, self.owner):
             with self.subTest(source=source.relative_to(self.root)):
                 original = source.read_text()
@@ -160,7 +160,7 @@ class ContractArtifactRegression(unittest.TestCase):
         for path in self.artifacts:
             self.assertIn(f"FAIL {path.relative_to(self.root)}: missing artifact", result.stdout)
             self.assertFalse(path.exists())
-        self.assertIn("Contract check: 0/2 artifacts synchronized", result.stdout)
+        self.assertIn(f"Contract check: 0/{len(self.artifacts)} artifacts synchronized", result.stdout)
 
     def test_individual_tampering_fails_without_masking_the_valid_artifact(self):
         for changed in self.artifacts:
@@ -172,18 +172,14 @@ class ContractArtifactRegression(unittest.TestCase):
                 for unchanged in self.artifacts:
                     if unchanged != changed:
                         self.assertIn(f"PASS {unchanged.relative_to(self.root)}:", result.stdout)
-                self.assertIn("Contract check: 1/2 artifacts synchronized", result.stdout)
+                self.assertIn(f"Contract check: {len(self.artifacts) - 1}/{len(self.artifacts)} artifacts synchronized", result.stdout)
                 changed.write_text(self.artifacts[changed])
 
-    def test_oracle_retains_owner_disclosure_and_pending_board_facts(self):
-        oracle = (self.root / "solution/ORACLE_CONTEXT.md").read_text()
-        self.assertIn(self.public.read_text(), oracle)
-        self.assertIn("Reject invalid page sizes.", oracle)
-        self.assertIn("CoWork disclosure: 2 relevant turns; one topic at a time.", oracle)
-        self.assertIn("CA-223 (Blocked): Evidence remains pending.", oracle)
+    def test_owner_map_binds_owner_routes_to_the_input_digest(self):
         diagram = (self.root / "solution/OWNER_MAP.md").read_text()
         self.assertIn("core_03 --> CA_210", diagram)
-        self.assertEqual(oracle.splitlines()[2], diagram.splitlines()[2])
+        self.assertTrue(diagram.splitlines()[2].startswith("Input SHA256: "))
+        self.assertNotIn("Reject invalid page sizes.", diagram)
 
     def test_generation_stdout_remains_an_apply_patch_stream(self):
         result = self.invoke()
