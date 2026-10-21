@@ -67,7 +67,9 @@ class Parser:
             value = self.expression()
             self.require(')')
         elif token.startswith('"'):
-            value = ('literal', json.loads(token))
+            # JJ string literals may contain raw control characters (for
+            # example \x01 field separators); only the escapes are JSON-like.
+            value = ('literal', json.loads(token, strict=False))
         elif token.isdigit():
             value = ('literal', int(token))
         elif re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*', token):
@@ -93,6 +95,13 @@ def display(value):
     raise ValueError('template value is not printable: ' + type(value).__name__)
 
 
+def truthy(value):
+    """JJ 0.11 converts String and List conditions: empty is false."""
+    if isinstance(value, (bool, str, list)):
+        return bool(value)
+    raise ValueError('template value is not a boolean: ' + type(value).__name__)
+
+
 def evaluate(node, record, variables):
     kind = node[0]
     if kind == 'literal':
@@ -107,6 +116,11 @@ def evaluate(node, record, variables):
         return display(evaluate(node[1], record, variables)) + display(evaluate(node[2], record, variables))
     if kind == 'call':
         name, arguments = node[1:]
+        if name == 'if' and len(arguments) in (2, 3):
+            # Only the selected branch is evaluated; a missing else is empty.
+            if truthy(evaluate(arguments[0], record, variables)):
+                return evaluate(arguments[1], record, variables)
+            return evaluate(arguments[2], record, variables) if len(arguments) == 3 else ''
         values = [evaluate(arg, record, variables) for arg in arguments]
         # JJ 0.11 exposes this Boolean as a keyword; it is not a function.
         if name in record and not values and name != 'current_working_copy':

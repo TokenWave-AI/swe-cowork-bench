@@ -91,23 +91,92 @@ def template(expression, record):
     return render_template(expression, record)
 
 
+def enclosed(expression):
+    """Return the inside of one (...) group spanning the whole expression."""
+    if not expression.startswith('(') or not expression.endswith(')'):
+        return None
+    depth, quoted = 0, False
+    for char in expression[1:-1]:
+        if char == '"':
+            quoted = not quoted
+        elif not quoted:
+            depth += {'(': 1, ')': -1}.get(char, 0)
+            if depth < 0:
+                return None
+    return expression[1:-1] if depth == 0 else None
+
+
+def split_operators(text, operators):
+    """Split at top-level binary operators, keeping the operators."""
+    parts, start, depth, quoted = [], 0, 0, False
+    for index, char in enumerate(text):
+        if char == '"':
+            quoted = not quoted
+        elif quoted:
+            continue
+        elif char == '(':
+            depth += 1
+        elif char == ')':
+            depth -= 1
+        elif depth == 0 and char in operators:
+            parts += [text[start:index].strip(), char]
+            start = index + 1
+    return parts + [text[start:].strip()]
+
+
 def revision_set(expression, state):
     expression = expression.strip()
+    # JJ 0.11 precedence: | binds loosest, then & and ~ (left associative),
+    # then the range operators, then postfix -/+ and primaries.
     unions = split_expression(expression, '|')
     if len(unions) > 1:
         return set().union(*(revision_set(part, state) for part in unions))
+    operands = split_operators(expression, '&~')
+    if len(operands) > 1:
+        # An empty operand before ~ is prefix negation: ~x is all() ~ x.
+        result, pending, index = None, '&', 0
+        while index < len(operands):
+            negated = False
+            while not operands[index] and index + 2 < len(operands) and operands[index + 1] == '~':
+                negated, index = not negated, index + 2
+            if not operands[index]:
+                raise ValueError('incomplete revset operator: ' + expression)
+            selected = revision_set(operands[index], state)
+            if negated:
+                selected = revision_set('all()', state) - selected
+            result = selected if result is None else (result & selected if pending == '&' else result - selected)
+            if index + 1 < len(operands):
+                pending = operands[index + 1]
+            index += 2
+        return result
+    inner = enclosed(expression)
+    if inner is not None:
+        return revision_set(inner, state)
     if expression == 'immutable_heads()':
         return set(state['immutable_heads'])
     if expression == 'none()':
+        return set()
+    if expression == 'root()':
+        # The virtual root commit is not part of the fixture graph and has no
+        # changes, so it never contributes a revision or a summary.
         return set()
     if expression == 'all()':
         return set(state['parents'])
     ranges = split_expression(expression, '..')
     if len(ranges) == 2:
         return revision_set('ancestors(' + (ranges[1] or '@') + ')', state) - revision_set('ancestors(' + (ranges[0] or '@') + ')', state)
-    function = re.fullmatch(r'(ancestors|descendants|heads|parents|children)\((.*)\)', expression)
-    if function:
-        arguments = split_expression(function[2], ',')
+    dag = split_expression(expression, '::')
+    if len(dag) == 2:
+        if not dag[0] and not dag[1]:
+            return revision_set('all()', state)
+        if not dag[0]:
+            return revision_set('ancestors(' + dag[1] + ')', state)
+        if not dag[1]:
+            return revision_set('descendants(' + dag[0] + ')', state)
+        return revision_set('descendants(' + dag[0] + ')', state) & revision_set('ancestors(' + dag[1] + ')', state)
+    function = re.fullmatch(r'(ancestors|descendants|heads|parents|children)(\(.*\))', expression)
+    if function and enclosed(function[2]) is not None:
+        arguments = split_expression(enclosed(function[2]), ',')
         selected = revision_set(arguments[0], state)
         if function[1] in ('parents', 'children'):
             if len(arguments) != 1:
@@ -133,6 +202,10 @@ def revision_set(expression, state):
         return {state['revision_aliases'][expression]}
     if expression in state['parents']:
         return {expression}
+    # Summary states name parent commits literally (e.g. "@-"); other
+    # postfix navigation is the JJ parents/children operator.
+    if expression[-1:] in ('-', '+') and len(expression) > 1:
+        return revision_set(('parents(' if expression[-1] == '-' else 'children(') + expression[:-1] + ')', state)
     raise ValueError('unsupported summary revset: ' + expression)
 
 
@@ -208,15 +281,11 @@ def log_records(state):
     tag_commits = [(identifier, description) for identifier, _, description in tag_rows(state)]
     for identifier, description in ordered + state['recent'] + tag_commits:
         records.setdefault(identifier, dict(commit_id=identifier, change_id=identifier, id=identifier,
-                                             description=description, parents=[], tags=[], branches=[], remote_branches=[],
+                                             description=description, parents=[], tags=[], branches=[], remote_branches=[], working_copies='',
                                              current_working_copy=identifier == graph['revision_aliases']['@']))
     for child, parents in graph['parents'].items():
         if child in records:
             records[child]['parents'] = [records[parent] for parent in parents if parent in records]
-    for identifier, name, description in tag_rows(state):
-        # Like branch references, JJ 0.11 tags are RefName values. Their
-        # display is the name, and .name() is also a valid typed accessor.
-        records[identifier]['tags'].append(dict(_kind='ref', name=name, remote=''))
     local, remote = [], []
     for name, branch in state['branches'].items():
         variants = [(None, branch['description'])] + list(branch['remotes'].items())
@@ -229,11 +298,25 @@ def log_records(state):
             identifier, description = fields[-2:]
             record = records.setdefault(identifier, dict(commit_id=identifier, change_id=fields[0],
                 id=identifier, description=description, parents=[], tags=[], branches=[], remote_branches=[],
-                current_working_copy=identifier == graph['revision_aliases']['@']))
+                working_copies='', current_working_copy=identifier == graph['revision_aliases']['@']))
             ref = dict(_kind='ref', name=name, remote=origin or '')
             field = 'remote_branches' if origin else 'branches'
             record[field].append(ref)
             (remote if origin else local).append(identifier)
+    # JJ 0.11 working_copies is a String keyword: "name@" for each workspace
+    # whose working-copy commit is this one, space separated, and empty when
+    # the repository has a single workspace. The default workspace is at @;
+    # other workspace records start with their working-copy commit id.
+    workspaces = state['workspaces']
+    for name, text in sorted(workspaces.items()):
+        target = graph['revision_aliases']['@'] if name == 'default' else text.split(' ', 1)[0]
+        if len(workspaces) > 1 and target in records:
+            record = records[target]
+            record['working_copies'] = ' '.join(filter(None, [record.get('working_copies', ''), name + '@']))
+    for identifier, name, description in tag_rows(state):
+        # Like branch references, JJ 0.11 tags are RefName values. Their
+        # display is the name, and .name() is also a valid typed accessor.
+        records[identifier]['tags'].append(dict(_kind='ref', name=name, remote=''))
     return records, list(dict.fromkeys(local)), list(dict.fromkeys(remote))
 
 
@@ -249,10 +332,21 @@ def render(arguments, state):
         return ''.join(path + '\n' for path in state['files'][revision])
     if command == ['resolve'] and '--list' in flags:
         return ''.join(f'{path}    {description}\n' for path, description in state['conflicts'][revision].items())
-    if command == ['config', 'list']:
+    if command[:2] == ['config', 'list'] and len(command) <= 3:
         values = dict(state['defaults']) if '--include-defaults' in flags else {}
         values.update(state['config'])
+        if len(command) == 3:
+            # JJ 0.11 lists the named table/key; an absent name is a warning
+            # on stderr with empty output and a zero exit status.
+            name = command[2]
+            values = {key: value for key, value in values.items() if key == name or key.startswith(name + '.')}
+            if not values:
+                print('No matching config key for ' + name, file=sys.stderr)
         return ''.join(f'{key}={value}\n' for key, value in values.items())
+    if command == ['util', 'config-schema']:
+        # The schema is compiled into the JJ binary and independent of
+        # repository state; this is the verbatim JJ 0.11.0 output.
+        return Path(__file__).with_name('jj_config_schema.json').read_text()
     if command == ['branch', 'list']:
         return ''.join(name + ': ' + branch['description'] + '\n' + (''.join(f'  @{remote}: {description}\n' for remote, description in branch['remotes'].items()) if '--all' in flags else '') for name, branch in state['branches'].items())
     if command == ['diff'] and '--types' in flags:
@@ -327,7 +421,7 @@ def render(arguments, state):
         records, _, _ = log_records(state)
         return ''.join(template(expression, records.get(identifier, dict(commit_id=identifier,
             change_id=identifier, id=identifier, description=description, tags=[], parents=[],
-            branches=[], remote_branches=[]))) for identifier, description in rows)
+            branches=[], remote_branches=[], working_copies=''))) for identifier, description in rows)
     raise ValueError('unsupported JJ command: ' + repr(arguments))
 
 
