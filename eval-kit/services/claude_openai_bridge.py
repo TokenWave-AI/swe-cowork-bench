@@ -154,12 +154,31 @@ def upstream_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "tool_choice": "auto",
     }
     tools = openai_tools(payload)
+    if result["stream"]:
+        # Ask for the final usage chunk; providers that already send usage
+        # on every chunk ignore it.
+        result["stream_options"] = {"include_usage": True}
     if tools:
         result["tools"] = tools
         result["parallel_tool_calls"] = True
     if effort in ("low", "high", "max"):
         result["reasoning_effort"] = effort
     return result
+
+
+def anthropic_usage(usage: dict[str, Any]) -> dict[str, int]:
+    """Map Chat Completions usage to Anthropic usage.
+
+    Anthropic counts cache reads separately from ``input_tokens``, so the
+    cached part of ``prompt_tokens`` is reported as ``cache_read_input_tokens``.
+    """
+    def count(value: Any) -> int:
+        return value if isinstance(value, int) and value > 0 else 0
+    details = usage.get("prompt_tokens_details")
+    cached = count(details.get("cached_tokens")) if isinstance(details, dict) else 0
+    prompt = count(usage.get("prompt_tokens", usage.get("input_tokens")))
+    return {"input_tokens": max(prompt - cached, 0), "cache_read_input_tokens": cached,
+            "output_tokens": count(usage.get("completion_tokens", usage.get("output_tokens")))}
 
 
 _TOOL_NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_.:-]{0,127}")
@@ -272,11 +291,13 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
         self._upstream_response = response
         identifier = "msg_" + uuid.uuid4().hex
         model = str(payload.get("model") or "")
-        self.emit("message_start", {"type": "message_start", "message": {
-            "id": identifier, "type": "message", "role": "assistant", "model": model,
-            "content": [], "stop_reason": None, "stop_sequence": None,
-            "usage": {"input_tokens": 0, "output_tokens": 0},
-        }})
+        def message_start(usage: dict[str, Any]) -> dict[str, Any]:
+            return {"type": "message_start", "message": {
+                "id": identifier, "type": "message", "role": "assistant", "model": model,
+                "content": [], "stop_reason": None, "stop_sequence": None,
+                "usage": usage,
+            }}
+        self.emit("message_start", message_start({"input_tokens": 0, "output_tokens": 0}))
         known_tools = [t.get("name") for t in payload.get("tools") or [] if isinstance(t, dict)]
         blocks: dict[int, dict[str, Any]] = {}
         next_index = 0
@@ -438,10 +459,18 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
                 "length": "max_tokens", "content_filter": "end_turn"}.get(finish, "end_turn")
             if truncated and stop_reason == "end_turn":
                 stop_reason = "max_tokens"
-            out_tokens = usage.get("completion_tokens", usage.get("output_tokens", 0))
+            final_usage = anthropic_usage(usage)
+            # Claude Code records per-message usage from message_start, which
+            # is sent before the provider reports usage. Attempts are buffered
+            # (see stream()), so rewrite the buffered event with the real input
+            # counts before it reaches the client.
+            buffer = getattr(self, "_attempt_events", None)
+            if buffer and buffer[0][0] == "message_start":
+                buffer[0] = ("message_start", self._encode("message_start", message_start(
+                    {**final_usage, "output_tokens": 0})))
             self.emit("message_delta", {"type": "message_delta", "delta": {"stop_reason": stop_reason,
                                                                                 "stop_sequence": None},
-                                          "usage": {"output_tokens": out_tokens}})
+                                          "usage": final_usage})
             self.emit("message_stop", {"type": "message_stop"})
         finally:
             response.close()
@@ -477,8 +506,7 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
         usage = data.get("usage") if isinstance(data, dict) and isinstance(data.get("usage"), dict) else {}
         result = {"id": "msg_" + uuid.uuid4().hex, "type": "message", "role": "assistant",
                   "model": payload.get("model"), "content": blocks, "stop_reason": stop_reason,
-                  "stop_sequence": None, "usage": {"input_tokens": usage.get("prompt_tokens", 0),
-                                                     "output_tokens": usage.get("completion_tokens", 0)}}
+                  "stop_sequence": None, "usage": anthropic_usage(usage)}
         raw = json.dumps(result, ensure_ascii=False, separators=(",", ":")).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -487,8 +515,12 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    @staticmethod
+    def _encode(event: str, value: dict[str, Any]) -> bytes:
+        return ("event: " + event + "\ndata: " + json.dumps(value, ensure_ascii=False, separators=(",", ":")) + "\n\n").encode()
+
     def emit(self, event: str, value: dict[str, Any]) -> None:
-        raw = ("event: " + event + "\ndata: " + json.dumps(value, ensure_ascii=False, separators=(",", ":")) + "\n\n").encode()
+        raw = self._encode(event, value)
         buffer = getattr(self, "_attempt_events", None)
         if buffer is not None:
             buffer.append((event, raw))
