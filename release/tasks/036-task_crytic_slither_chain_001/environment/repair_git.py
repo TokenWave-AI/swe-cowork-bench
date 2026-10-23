@@ -1,6 +1,6 @@
 """Repack the authorized public history, remove unreferenced objects, fix permissions."""
 import hashlib,json,os,pathlib,shutil,subprocess,tempfile
-repo=pathlib.Path('/app/code');base='e1d4a94a3356c742d8ec910773c4d4f9ee33b653'
+repo=pathlib.Path('/app/code');base='a557332fce80b67b6c85811299375daf5c0e8d11'
 for root,dirs,files in os.walk(repo/'.git'):
     os.chmod(root,0o755)
     for f in files:os.chmod(pathlib.Path(root)/f,0o644)

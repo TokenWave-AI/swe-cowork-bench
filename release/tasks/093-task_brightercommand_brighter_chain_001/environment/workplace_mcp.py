@@ -27,7 +27,7 @@ DEFAULT_SIDECAR_URL = os.environ.get("TOKENWAVE_WORKPLACE_URL", "http://workplac
 DEFAULT_SIDECAR_SOCKET = os.environ.get("WORKPLACE_SERVICE_SOCKET", "/run/workplace/service.sock")
 DEFAULT_MCP_TIMEOUT_SECONDS = 240.0
 REPOSITORY_DIR = Path(os.environ.get("WORKPLACE_REPOSITORY_DIR", "/app/code"))
-BASELINE_HEAD = os.environ.get("WORKPLACE_BASELINE_HEAD", 'bd92146359b7284fcdab84dc62326d50606d5535').strip()
+BASELINE_HEAD = os.environ.get("WORKPLACE_BASELINE_HEAD", '4a4a883f24f9e9c65c3818eb94ec83d6f4861071').strip()
 
 
 # Tool names are a protocol allowlist; the service owns descriptions and schemas.

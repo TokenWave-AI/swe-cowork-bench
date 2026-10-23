@@ -50,7 +50,7 @@ def sanitize_notification_value(value):
     return value
 
 REPOSITORY_DIR = Path(os.environ.get("WORKPLACE_REPOSITORY_DIR", "/app/code"))
-BASELINE_HEAD = os.environ.get("WORKPLACE_BASELINE_HEAD", '68b9ce89cd576492f057687613b49298806a6486').strip()
+BASELINE_HEAD = os.environ.get("WORKPLACE_BASELINE_HEAD", '269ee7f241102e844b5f17547e9e147ca5b7ac56').strip()
 
 
 # Tool names are a protocol allowlist; the service owns descriptions and schemas.

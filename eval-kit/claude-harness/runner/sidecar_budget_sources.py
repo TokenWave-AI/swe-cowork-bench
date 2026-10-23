@@ -2,7 +2,7 @@
 
 Release: 20261020-101-en
 Source: manifest+images
-Generated: 2026-10-21T20:39:27Z
+Generated: 2026-10-23T20:29:12Z
 
 Pins are enforced only when PINNED_MANIFEST_SHA256 equals the evaluated
 release MANIFEST; otherwise runner/sidecar_manifest.py derives expectations
@@ -12,7 +12,7 @@ from the MANIFEST. Regenerate after every release rebuild:
 
 RELEASE_ID = '20261020-101-en'
 
-PINNED_MANIFEST_SHA256 = 'e960376a468bea24937982f1a5bcf1e11b9857dab651028b832a3d27d882fa61'
+PINNED_MANIFEST_SHA256 = 'fed9f551861282beeff9cec1c6bd2f443c1c6fa61e84080a3c6ce1888db4625e'
 
 PIN_SOURCE = 'manifest+images'
 

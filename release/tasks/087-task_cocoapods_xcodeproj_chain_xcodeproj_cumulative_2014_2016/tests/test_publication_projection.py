@@ -56,7 +56,7 @@ class PublicationProjectionTests(unittest.TestCase):
         original = path.read_text()
         for old, new in [('timeout_sec = 28800.0', 'timeout_sec = 14400.0'),
                          ('network_mode = "no-network"', 'network_mode = "host"'),
-                         ('workplace_baseline_head = "3f9ca60310bb08e01a480e083ecd57911137afdd"', 'workplace_baseline_head = "' + '0' * 40 + '"')]:
+                         ('workplace_baseline_head = "2053a3c937c858a1d7143f9ca6e86727eb78c972"', 'workplace_baseline_head = "' + '0' * 40 + '"')]:
             path.write_text(original.replace(old, new))
             with self.subTest(change=old), self.assertRaisesRegex(ValueError, 'outside the release projection'):
                 validate(self.root)
