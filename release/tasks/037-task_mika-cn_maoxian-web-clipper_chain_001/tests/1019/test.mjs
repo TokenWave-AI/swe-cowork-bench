@@ -13,4 +13,10 @@ await runProbe('1019', async () => {
   assert.equal(r.tasks.length, 0);
   assert.equal(r.change.toChangeObjectAccessor().getProperty('ignore'), true);
   ExtMsg.clearMocks();
+  const saveAll = params(RequestParams, {htmlCaptureIcon: 'saveAll'});
+  ExtMsg.mockGetUniqueFilename();
+  ExtMsg.mockMsgResult('get.mimeType', 'image/png');
+  const saved = await Capturer.capture(node, saveAll);
+  assert.equal(saved.tasks.length, 1);
+  ExtMsg.clearMocks();
 });

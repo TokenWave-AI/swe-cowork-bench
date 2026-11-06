@@ -47,7 +47,7 @@ def _host_source(path, host_mounts):
 
 
 def _profile():
-    path = engine.ROOT / 'provenance/row093-platform.json'
+    path = engine.ROOT / 'runtime/approvals/row093-platform.json'
     if path.is_symlink() or engine.digest(path) != PROFILE_SHA256:
         raise RuntimeError('Row 093 platform approval changed')
     profile = json.loads(path.read_text())

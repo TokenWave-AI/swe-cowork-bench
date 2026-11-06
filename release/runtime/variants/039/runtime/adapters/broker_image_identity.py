@@ -25,7 +25,7 @@ def require(condition, message):
 
 
 def document(path, expected):
-    root = engine.ROOT / 'provenance/broker-image-identities'
+    root = engine.ROOT / 'runtime/approvals/broker-image-identities'
     require(root.resolve(strict=True) == root and root.is_dir(), 'proof directory is not canonical')
     require(path.parent == root and path.is_file() and not path.is_symlink(), 'proof file is missing or symlinked')
     raw = path.read_bytes()
@@ -40,7 +40,7 @@ def require_image(entry, role, image, *, inventory=False):
         if (inventory_binding(entry) if inventory else binding(entry)) is not None:
             reference = entry['images'][role]
     require(reference is not None and entry['images'].get(role) == reference, 'published reference changed')
-    root = engine.ROOT / 'provenance/broker-image-identities'
+    root = engine.ROOT / 'runtime/approvals/broker-image-identities'
     prefix = f"{entry['row']:03d}-{role}"
     published = reference.rsplit('@', 1)[1]
     root_document_path = root / (prefix + '.root.json')

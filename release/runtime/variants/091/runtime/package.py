@@ -20,8 +20,10 @@ def package_files(root):
     root = Path(root).resolve(strict=True)
     selected = {}
     roots = ('cowork', 'README.md', 'MANIFEST.json', 'requirements.txt', '.env.example', '.gitignore',
-             'runtime', 'tasks', 'docs', 'provenance', 'validation')
+             'runtime', 'tasks', 'docs', 'validation')
     def add(path):
+        if path.name == 'provenance':
+            raise RuntimeError('Internal audit directory must not be packaged: ' + str(path))
         if path.name in registry.IGNORED or path.name == '.git' or path.suffix in {'.pyc', '.pyo'}:
             return
         if path.is_symlink():

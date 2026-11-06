@@ -47,7 +47,7 @@ def phase_gate(entry):
 
 
 def approved_python():
-    path = engine.ROOT / 'provenance/row093-python.json'
+    path = engine.ROOT / 'runtime/approvals/row093-python.json'
     if path.is_symlink() or engine.digest(path) != APPROVAL_SHA256:
         raise engine.RuntimeErrorWithContext('Row 093 Python approval changed')
     return path

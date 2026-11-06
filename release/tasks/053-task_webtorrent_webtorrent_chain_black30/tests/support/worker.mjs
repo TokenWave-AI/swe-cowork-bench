@@ -16,6 +16,12 @@ export async function checkWorker () {
   const cancelGate = new Promise(resolve => { releaseCancel = resolve })
   let cancelCalls = 0
   globalThis.fetch = async () => ({ body: { cancel () { cancelCalls++; return cancelGate } } })
+  const registrationCancelFetch = globalThis.fetch
+  const registrationCancelUrls = []
+  globalThis.fetch = async (input) => {
+    registrationCancelUrls.push(String(input))
+    return registrationCancelFetch()
+  }
   const client = makeClient()
   try {
     assert.equal(client.serviceWorker, null)
@@ -38,6 +44,16 @@ export async function checkWorker () {
     }))
     await tick()
     assert.equal(cancelCalls, 1)
+    assert.equal(registrationCancelUrls.length, 1)
+    const registrationCancelUrl = registrationCancelUrls[0]
+    let registrationCancelPath = ''
+    try {
+      registrationCancelPath = new URL(registrationCancelUrl, globalThis.window.location.origin).pathname
+    } catch {
+      registrationCancelPath = ''
+    }
+    const scriptDirectory = new URL('.', controller.scriptURL).pathname
+    assert.equal(registrationCancelPath, scriptDirectory.replace(/\/$/, '') + '/webtorrent/cancel/')
     assert.equal(callbacks, 0, 'callback must wait for cancellation promise')
     releaseCancel()
     await loaded

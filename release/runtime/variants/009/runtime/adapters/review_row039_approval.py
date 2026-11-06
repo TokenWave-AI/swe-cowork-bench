@@ -240,7 +240,7 @@ def main():
         'mount_profile': profile,
         'policy_template': policy,
     }
-    output = engine.ROOT / 'provenance/row039-clean-candidate-v2.json'
+    output = engine.ROOT / 'runtime/approvals/row039-clean-candidate-v2.json'
     with output.open('x') as stream:
         json.dump(candidate, stream, sort_keys=True, separators=(',', ':'))
         stream.write('\n')
