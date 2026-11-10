@@ -26,7 +26,7 @@ def _read_regular(path):
 
 def _label_core(line):
     core = line.strip()
-    while core[:1] in '#-*:>`*_':
+    while core and core[:1] in '#-*:>`*_':
         core = core[1:].lstrip()
     while core and core[-1:] in ':`*_':
         core = core[:-1].rstrip()

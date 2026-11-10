@@ -142,7 +142,7 @@ def _substantive_lines(text: str) -> list[str]:
         if not line:
             continue
         core = line
-        while core[:1] in "#-*:>":
+        while core and core[:1] in "#-*:>":
             core = core[1:].lstrip()
         while core.endswith(":"):
             core = core[:-1].rstrip()

@@ -80,7 +80,7 @@ def _sentences(text: str) -> list[str]:
 def _bare_subject(sentence: str) -> bool:
     """A line that only names a subject is a label, not a record of that subject."""
     core = sentence.strip()
-    while core[:1] in "#*- >":
+    while core and core[:1] in "#*- >":
         core = core[1:].strip()
     while core.endswith(":"):
         core = core[:-1].strip()
@@ -199,7 +199,7 @@ def solution_report_ok() -> bool:
     cleaned: list[str] = []
     for sentence in sentences:
         core = sentence.strip()
-        while core[:1] in "#*- >":
+        while core and core[:1] in "#*- >":
             core = core[1:].strip()
         while core.endswith(":"):
             core = core[:-1].strip()

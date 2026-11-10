@@ -146,10 +146,10 @@ _REPORT_LABELS = {
 def _line_core(line: str) -> str:
     """Strip markdown marks and a trailing colon without removing body words."""
     core = line.strip()
-    while core[:1] in "#-*:>":
+    while core and core[:1] in "#-*:>":
         core = core[1:].lstrip()
     # A repeated mark such as **bold** leaves the closing marks after the label.
-    while core[-1:] in "#-*:>":
+    while core and core[-1:] in "#-*:>":
         core = core[:-1].rstrip()
     while core.endswith(":"):
         core = core[:-1].rstrip()
