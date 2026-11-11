@@ -144,7 +144,7 @@ switch ($node) {
         break;
 
     case 2022:
-        putenv('CLAUDECODE=1');
+        // CLAUDECODE is supplied by the trusted parent for this node.
         $reflection = new ReflectionClass(Stripe\ApiRequestor::class);
         $headersMethod = $reflection->getMethod('_defaultHeaders');
         $headersMethod->setAccessible(true);
@@ -152,7 +152,6 @@ switch ($node) {
         $userAgent = json_decode($headers['X-Stripe-Client-User-Agent'], true, 512, JSON_THROW_ON_ERROR);
         probe_expect(($userAgent['ai_agent'] ?? null) === 'claude_code', 'detected AI agent is included in structured user agent');
         probe_expect(str_contains($headers['User-Agent'], 'AIAgent/claude_code'), 'detected AI agent is included in User-Agent');
-        putenv('CLAUDECODE');
         break;
 
     case 2030:
@@ -217,7 +216,7 @@ switch ($node) {
         break;
 
     case 2079:
-        putenv('XDG_CONFIG_HOME=' . getenv('PROBE_STATE_DIR'));
+        // The trusted parent supplies the isolated XDG_CONFIG_HOME.
         if (class_exists('Stripe\\TelemetryId')) {
             Stripe\TelemetryId::reset();
         }
@@ -250,7 +249,7 @@ switch ($node) {
         break;
 
     case 2098:
-        putenv('XDG_CONFIG_HOME=/tmp/stripe-probe-telemetry');
+        // The trusted parent supplies the isolated XDG_CONFIG_HOME.
         Stripe\TelemetryId::reset();
         $id = Stripe\TelemetryId::get();
         probe_expect(is_string($id) && preg_match('/^[0-9a-f]{32}$/', $id) === 1, 'telemetry id is a UUID-shaped stable hex value');
@@ -307,12 +306,10 @@ switch ($node) {
         break;
 
     case 2117:
-        $init = $repo . '/init.php';
-        $childCode = 'putenv("CLAUDECODE=1"); require ' . var_export($init, true) . ';';
-        $command = escapeshellarg(PHP_BINARY) . ' -r ' . escapeshellarg($childCode) . ' 2>&1';
-        $output = [];
-        $status = 0;
-        exec($command, $output, $status);
+        // Python launches the same fixed fresh-interpreter observation with
+        // CLAUDECODE=1 and captures its real exit status and merged output.
+        $output = explode("\n", getenv('PROBE_AGENT_INIT_OUTPUT'));
+        $status = (int) getenv('PROBE_AGENT_INIT_STATUS');
         probe_expect($status === 0, 'init remains loadable when an AI agent is active');
         probe_expect(str_contains(implode("\n", $output), '<claude-code-hint'), 'agent plugin hint is emitted by init');
         break;
