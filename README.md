@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/tokenwave-dark.svg">
-    <img src="assets/readme/tokenwave.svg" alt="TokenWave" height="46">
+    <source media="(max-width: 600px)" srcset="assets/readme/institutions-mobile.png">
+    <img src="assets/readme/institutions.png" width="100%" alt="TokenWave, Princeton University, the University of Tokyo, UC Santa Cruz, Peking University, and Nanjing University">
   </picture>
 </p>
 
